@@ -1,0 +1,136 @@
+{
+  "entities": {
+    "ResourceReference": {
+      "title": "Resource Reference",
+      "description": "Reference to an external resource",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["name", "type", "url"]
+    },
+    "Step": {
+      "title": "Playbook Step",
+      "description": "A single step in a playbook",
+      "type": "object",
+      "properties": {
+        "step_id": { "type": "string" },
+        "action": { "type": "string" },
+        "type": { "type": "string" },
+        "note": { "type": "string" },
+        "resources": {
+          "type": "array",
+          "items": { "$ref": "ResourceReference" }
+        }
+      },
+      "required": ["step_id", "action", "type"]
+    },
+    "NodeReference": {
+      "title": "Node Reference",
+      "description": "Cross-reference between nodes",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "ref_id": { "type": "string" },
+        "matchValue": { "type": "string" }
+      },
+      "required": ["type", "ref_id"]
+    },
+    "Playbook": {
+      "title": "Playbook",
+      "description": "A playbook document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "entity_type": { "type": "string", "enum": ["playbook"] },
+        "info": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "title": { "type": "string" },
+            "version": { "type": "string" },
+            "description": { "type": "string" },
+            "last_updated": { "type": "string" },
+            "categories": { "type": "array", "items": { "type": "string" } },
+            "department": { "type": "string" }
+          },
+          "required": ["id", "title", "categories"]
+        },
+        "cadence": { "type": "string" },
+        "subType": { "type": "string" },
+        "parent_id": { "type": "string" },
+        "resources": { "type": "array", "items": { "$ref": "ResourceReference" } },
+        "steps": { "type": "array", "items": { "$ref": "Step" } },
+        "linktree": {
+          "type": "object",
+          "properties": {
+            "upstream": { "type": "array", "items": { "type": "string" } },
+            "downstream": { "type": "array", "items": { "type": "string" } },
+            "related": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "related_playbooks": { "type": "array", "items": { "$ref": "NodeReference" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "acl": { "type": "object" }
+      },
+      "required": ["id", "entity_type", "info", "steps"]
+    },
+    "Factor": {
+      "title": "Factor",
+      "description": "A decision node (business rule)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "entity_type": { "type": "string", "enum": ["factor"] },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "controlType": { "type": "string" },
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "children": { "type": "array", "items": { "$ref": "NodeReference" } },
+        "related_playbooks": { "type": "array", "items": { "$ref": "NodeReference" } },
+        "parent_id": { "type": "string" },
+        "acl": { "type": "object" }
+      },
+      "required": ["id", "entity_type", "label", "children"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "teams": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "CategoryRoot": {
+       "title": "Category Root",
+       "description": "Root nodes for a category",
+       "type": "object",
+       "properties": {
+         "id": { "type": "string" },
+         "nodes": { "type": "array", "items": { "type": "string" } }
+       },
+       "required": ["id", "nodes"]
+    }
+  },
+  "firestore": {
+    "nodes/{nodeId}": {
+      "schema": "Playbook",
+      "description": "Storage for all playbooks and rules (nodes)"
+    },
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User security profiles"
+    },
+    "metadata/categoryRoots": {
+      "schema": "CategoryRoot",
+      "description": "Categorical mapping for the registry"
+    }
+  }
+}
