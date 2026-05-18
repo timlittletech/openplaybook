@@ -5,7 +5,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  ChevronRight, 
+  ChevronRight,
+  ChevronLeft, 
   ChevronDown, 
   BookOpen, 
   ShieldAlert, 
@@ -39,12 +40,19 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
-import { FirebaseProvider, useFirebase } from './contexts/FirebaseContext';
-import { 
-  masterRegistry as staticRegistry, 
-  seedDataRelation as staticRoots,
-  mockUsers,
-} from './data';
+import { Star } from 'lucide-react';
+import {
+  SignedIn,
+  SignedOut,
+  SignInButton,
+  UserButton,
+  OrganizationSwitcher,
+  CreateOrganization,
+  useOrganization,
+} from '@clerk/clerk-react';
+import { PlaybookProvider, usePlaybook } from './contexts/PlaybookContext';
+import { BrandedMarkdown } from './components/BrandedMarkdown';
+import { mockUsers } from './data';
 import { 
   PlaybookDocumentUnion, 
   PlaybookDocument,
@@ -281,7 +289,7 @@ const BusinessRuleBlock: React.FC<BusinessRuleBlockProps> = ({
   user,
   registry
 }) => {
-  const { isEditMode, saveDraft } = useFirebase();
+  const { isEditMode, saveDraft } = usePlaybook();
   const relatedPlaybooks = useMemo(() => {
     const refs: PlaybookReference[] = factor.related_playbooks || [];
     return refs.filter(r => {
@@ -456,7 +464,7 @@ const FactorTreeItem: React.FC<FactorTreeItemProps> = ({
   depth,
   registry
 }) => {
-  const { isEditMode, saveDraft } = useFirebase();
+  const { isEditMode, saveDraft } = usePlaybook();
   const [isRollup, setIsRollup] = useState(false);
   const kdfChoice = kdfChoices[factor.id] || '';
   
@@ -589,7 +597,7 @@ const RecursivePlaybookRenderer: React.FC<PlaybookViewerProps & { onCategorySele
   onCategorySelect,
   registry
 }) => {
-  const { isEditMode, saveDraft, getVersions } = useFirebase();
+  const { isEditMode, saveDraft, getVersions, isFavorite, toggleFavorite } = usePlaybook();
   const [isRollup, setIsRollup] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [versions, setVersions] = useState<any[]>([]);
@@ -726,6 +734,17 @@ const RecursivePlaybookRenderer: React.FC<PlaybookViewerProps & { onCategorySele
             )}
           </div>
           <div className="flex items-center gap-4 shrink-0">
+            <button
+              onClick={() => toggleFavorite(playbook.info.id)}
+              title={isFavorite(playbook.info.id) ? 'Remove from favorites' : 'Add to favorites'}
+              className={`p-2 rounded-lg border transition-all ${
+                isFavorite(playbook.info.id)
+                  ? 'bg-amber-50 border-amber-200 text-amber-500'
+                  : 'bg-white border-slate-200 text-slate-300 hover:text-amber-400 hover:border-amber-200'
+              }`}
+            >
+              <Star className="w-4 h-4" fill={isFavorite(playbook.info.id) ? 'currentColor' : 'none'} />
+            </button>
             <div className="text-right">
               <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-1 leading-none">Cadence</span>
               <span className="text-[10px] font-bold text-slate-900 uppercase bg-amber-50 px-2 py-1 rounded border border-amber-100 shadow-sm">{playbook.cadence || 'N/A'}</span>
@@ -818,13 +837,35 @@ const RecursivePlaybookRenderer: React.FC<PlaybookViewerProps & { onCategorySele
           </div>
         </div>
 
+        {/* Long-form markdown body (SOP-style playbooks) */}
+        {playbook.body_markdown && (
+          <div className="mt-8 pt-8 border-t border-slate-50">
+            {isEditMode && canUpdate ? (
+              <div>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                  <FileText className="w-3 h-3 text-indigo-500" /> SOP Body (Markdown)
+                </h3>
+                <textarea
+                  className="w-full min-h-[400px] text-sm font-mono text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-4 focus:outline-none focus:border-indigo-500 resize-y"
+                  value={playbook.body_markdown}
+                  onChange={(e) => saveDraft(playbook.info.id, { body_markdown: e.target.value })}
+                />
+              </div>
+            ) : (
+              <BrandedMarkdown>{playbook.body_markdown}</BrandedMarkdown>
+            )}
+          </div>
+        )}
+
+        {/* Step list (hidden for SOP-style playbooks with no steps) */}
+        {(playbook.steps.length > 0 || (isEditMode && canUpdate)) && (
         <div className="mt-8 pt-8 border-t border-slate-50">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <CheckCircle2 className="w-3 h-3 text-indigo-500" /> Playbook Checklist
             </h3>
             {isEditMode && canUpdate && (
-              <button 
+              <button
                 onClick={() => {
                   const newStep = { step_id: `step_${Date.now()}`, action: 'New Step Content', type: 'task' };
                   saveDraft(playbook.info.id, { steps: [...playbook.steps, newStep] });
@@ -835,7 +876,7 @@ const RecursivePlaybookRenderer: React.FC<PlaybookViewerProps & { onCategorySele
               </button>
             )}
           </div>
-          
+
           <div className="flex flex-col gap-2">
             {playbook.steps.map((step, i) => (
               <div key={step.step_id} className={`p-2.5 bg-slate-50/30 rounded-xl border border-slate-100 hover:border-indigo-100 transition-all group flex items-start gap-3 ${isEditMode && canUpdate ? 'ring-1 ring-indigo-500/10' : ''}`}>
@@ -905,6 +946,7 @@ const RecursivePlaybookRenderer: React.FC<PlaybookViewerProps & { onCategorySele
             ))}
           </div>
         </div>
+        )}
 
         {/* Related Playbooks (Small Cards) */}
         {relatedPlaybooks.length > 0 && (
@@ -1023,37 +1065,244 @@ const RecursivePlaybookRenderer: React.FC<PlaybookViewerProps & { onCategorySele
   );
 };
 
+// --- Wiki-style sidebar (collapsible category sections with nested playbooks) ---
+
+interface WikiSidebarProps {
+  roots: Record<string, string[]>;
+  nodes: Record<string, PlaybookDocumentUnion>;
+  selectedId: string;
+  onSelect: (id: string) => void;
+  user: AppUser;
+  searchQuery: string;
+}
+
+const WikiSidebar: React.FC<WikiSidebarProps> = ({
+  roots,
+  nodes,
+  selectedId,
+  onSelect,
+  user,
+  searchQuery,
+}) => {
+  // Find which category the currently-selected node belongs to so we can auto-expand it
+  const selectedNode = nodes[selectedId];
+  const selectedCategory =
+    selectedNode ? (getCategories(selectedNode)[0] ?? null) : null;
+
+  const allCategories = useMemo(() => Object.keys(roots), [roots]);
+
+  // Start with the active category expanded; users can collapse/expand others freely
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    if (selectedCategory) s.add(selectedCategory);
+    return s;
+  });
+
+  // Auto-expand the category of whatever's selected
+  useEffect(() => {
+    if (selectedCategory) {
+      setExpanded(prev => {
+        if (prev.has(selectedCategory)) return prev;
+        const next = new Set(prev);
+        next.add(selectedCategory);
+        return next;
+      });
+    }
+  }, [selectedCategory]);
+
+  // When the user types in the search box, expand every category that has a match
+  useEffect(() => {
+    if (!searchQuery.trim()) return;
+    const q = searchQuery.toLowerCase();
+    setExpanded(prev => {
+      const next = new Set(prev);
+      allCategories.forEach(cat => {
+        const ids = roots[cat] ?? [];
+        const anyMatch = ids.some(id => {
+          const n = nodes[id];
+          return n && getTitle(n).toLowerCase().includes(q);
+        });
+        if (anyMatch) next.add(cat);
+      });
+      return next;
+    });
+  }, [searchQuery, allCategories, roots, nodes]);
+
+  const toggle = (cat: string) =>
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+
+  const matchesQuery = (node: PlaybookDocumentUnion) => {
+    if (!searchQuery.trim()) return true;
+    return getTitle(node).toLowerCase().includes(searchQuery.toLowerCase());
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto custom-scrollbar">
+      {allCategories.map(cat => {
+        const ids = roots[cat] ?? [];
+        const visibleNodes = ids
+          .map(id => nodes[id])
+          .filter((n): n is PlaybookDocumentUnion => !!n)
+          .filter(n => hasPermission(user, n, 'read'))
+          .filter(matchesQuery);
+
+        if (searchQuery.trim() && visibleNodes.length === 0) return null;
+
+        const isOpen = expanded.has(cat);
+        return (
+          <div key={cat} className="border-b border-slate-50 last:border-b-0">
+            <button
+              onClick={() => toggle(cat)}
+              className="flex items-center justify-between w-full px-4 py-2.5 hover:bg-slate-50 transition-colors group"
+            >
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                {cat}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-300">{visibleNodes.length}</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                    isOpen ? 'rotate-0' : '-rotate-90'
+                  }`}
+                />
+              </div>
+            </button>
+            {isOpen && (
+              <div className="pb-2">
+                {visibleNodes.length === 0 ? (
+                  <div className="px-6 py-2 text-[11px] italic text-slate-400">No pages</div>
+                ) : (
+                  visibleNodes.map(n => {
+                    const id = n.entity_type === 'playbook' ? n.info.id : n.id;
+                    const isSelected = id === selectedId;
+                    const Icon = n.entity_type === 'playbook' ? BookOpen : ShieldAlert;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => onSelect(id)}
+                        className={`flex items-center gap-2 w-full text-left pl-6 pr-4 py-1.5 transition-colors ${
+                          isSelected
+                            ? 'bg-indigo-50 text-indigo-800 border-l-2 border-indigo-600'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent'
+                        }`}
+                      >
+                        <Icon
+                          className={`w-3.5 h-3.5 shrink-0 ${
+                            isSelected ? 'text-indigo-500' : 'text-slate-300'
+                          }`}
+                        />
+                        <span className="text-[12px] font-medium leading-snug truncate">
+                          {getTitle(n)}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // --- Root Wrapper ---
 
 export default function App() {
   return (
-    <FirebaseProvider>
-      <AppContent />
-    </FirebaseProvider>
+    <>
+      <SignedOut>
+        <SignInGate />
+      </SignedOut>
+      <SignedIn>
+        <OrgGate>
+          <PlaybookProvider>
+            <AppContent />
+          </PlaybookProvider>
+        </OrgGate>
+      </SignedIn>
+    </>
   );
 }
 
+// Splash screen for signed-out users
+function SignInGate() {
+  return (
+    <div className="flex h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
+      <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-100 mb-6">O</div>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-800 mb-2">Open Playbook</h1>
+      <p className="text-sm text-slate-500 mb-8 max-w-md">
+        Sign in to access your organization's operations playbook.
+      </p>
+      <SignInButton mode="modal">
+        <button className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 uppercase tracking-widest">
+          Sign In
+        </button>
+      </SignInButton>
+    </div>
+  );
+}
+
+// Gate that forces the user to have an active org before the app loads.
+// Clerk's <OrganizationSwitcher> handles creating/selecting one.
+function OrgGate({ children }: { children: React.ReactNode }) {
+  const { organization, isLoaded } = useOrganization();
+  if (!isLoaded) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!organization) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center bg-slate-50 px-6">
+        <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-100 mb-6">O</div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-800 mb-2">Choose or create an organization</h1>
+        <p className="text-sm text-slate-500 mb-8 max-w-md text-center">
+          Each organization gets its own private playbook workspace.
+        </p>
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+          <CreateOrganization
+            afterCreateOrganizationUrl="/"
+            skipInvitationScreen={false}
+          />
+        </div>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 function AppContent() {
-  const { 
-    profile, 
-    nodes, 
-    roots, 
-    loading, 
-    login, 
-    logout, 
+  const {
+    profile,
+    nodes,
+    roots,
+    loading,
+    orgName,
     seed,
     isEditMode,
     setIsEditMode,
     saveDraft,
-    publishDraft 
-  } = useFirebase();
-  const [localUser, setLocalUser] = useState<AppUser | null>(null);
-  
-  // Use profile if logged in, otherwise use localUser (demo mode)
-  const currentUser = profile || localUser || mockUsers[0];
+    publishDraft,
+    favorites,
+    toggleFavorite,
+  } = usePlaybook();
 
-  const [selectedId, setSelectedId] = useState<string>('pb-sales-onboarding');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Sales');
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+
+  // Fallback to the seed admin so the UI renders before profile is fetched
+  const currentUser = profile || mockUsers[0];
+
+  const [selectedId, setSelectedId] = useState<string>('overview');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Overview');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({ query: '', tags: [] });
@@ -1145,7 +1394,12 @@ function AppContent() {
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-100">O</div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-800 shrink-0">Open Playbook <span className="text-slate-400 font-normal">BOS</span></h1>
+            <h1 className="text-lg font-bold tracking-tight text-slate-800 shrink-0">
+              Open Playbook
+              {orgName && (
+                <span className="text-slate-400 font-normal"> · {orgName}</span>
+              )}
+            </h1>
           </div>
 
           <div className="hidden md:flex items-center w-96 relative group">
@@ -1191,77 +1445,22 @@ function AppContent() {
             </div>
           )}
 
-          {/* Auth Controls */}
-          {!profile ? (
-            <button 
-              onClick={login}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 uppercase tracking-widest"
-            >
-               <User className="w-4 h-4" />
-               Sign In
-            </button>
-          ) : (
-             <div className="flex items-center gap-4">
-               <button 
-                onClick={logout}
-                className="text-[10px] font-bold text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors"
-               >
-                 Sign Out
-               </button>
-                <div className="flex items-center gap-3">
-                  <div className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold uppercase tracking-widest border border-indigo-100">
-                    {profile.role}
-                  </div>
-                  <div className="w-9 h-9 bg-white border-2 border-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-50 overflow-hidden">
-                    <img src={`https://ui-avatars.com/api/?name=${profile.name}&background=6366f1&color=fff`} alt={profile.name} className="w-full h-full object-cover" />
-                  </div>
-                </div>
-             </div>
-          )}
-
-          {/* Demo Overrides */}
-          {!profile && (
-            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">Demo:</span>
-              <select 
-                className="bg-transparent text-[11px] font-bold text-indigo-600 cursor-pointer focus:outline-none"
-                value={localUser?.id || ''}
-                onChange={(e) => setLocalUser(mockUsers.find(u => u.id === e.target.value) || null)}
-              >
-                <option value="">Guest</option>
-                {mockUsers.map(u => (
-                  <option key={u.id} value={u.id}>{u.role}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Auth Controls — Clerk */}
+          <div className="flex items-center gap-4">
+            <OrganizationSwitcher
+              afterCreateOrganizationUrl="/"
+              afterSelectOrganizationUrl="/"
+              hidePersonal
+            />
+            {profile && (
+              <div className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold uppercase tracking-widest border border-indigo-100">
+                {profile.role}
+              </div>
+            )}
+            <UserButton afterSignOutUrl="/" />
+          </div>
         </div>
       </header>
-
-      {/* Category Selection Tabs */}
-      <nav className="h-12 bg-white border-b border-slate-100 flex items-center px-6 gap-6 shrink-0 z-20">
-        {categories.map(cat => (
-          <button 
-            key={cat}
-            onClick={() => {
-              setSelectedCategory(cat);
-              const rootsInCat = roots[cat] || [];
-              if (rootsInCat.length > 0) setSelectedId(rootsInCat[0]);
-            }}
-            className={`h-full px-2 text-[11px] font-black uppercase tracking-widest transition-all relative ${
-              selectedCategory === cat ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            {cat}
-            {selectedCategory === cat && (
-              <motion.div 
-                layoutId="cat-tab"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600"
-              />
-            )}
-          </button>
-        ))}
-      </nav>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar Navigation */}
@@ -1270,71 +1469,40 @@ function AppContent() {
             sidebarOpen ? 'w-64' : 'w-0'
           } bg-white border-r border-slate-200 transition-all duration-300 overflow-hidden flex flex-col shrink-0 z-20`}
         >
-          <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Process Registry</span>
-            <div className="flex items-center gap-2">
-               <button 
-                onClick={() => setKdfChoices({})}
-                className="text-[9px] font-bold text-slate-400 hover:text-indigo-600 uppercase tracking-tight"
-               >
-                 Reset
-               </button>
-               {currentUser.role === 'Administrator' && (
-                  <button 
-                    onClick={seed}
-                    title="Seed Firebase"
-                    className="p-1 hover:bg-slate-200 rounded transition-colors"
-                  >
-                    <Settings className="w-3 h-3 text-slate-400" />
-                  </button>
-               )}
-            </div>
-          </div>
-
-          <div className="p-4 border-b border-slate-50">
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-              <input 
-                type="text" 
-                placeholder={`Search ${selectedCategory}...`} 
-                className="w-full pl-8 pr-4 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+          <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="relative group flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+              <input
+                type="text"
+                placeholder="Search playbooks..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
                 value={filters.query}
-                onChange={(e) => {
-                  setFilters({ ...filters, query: e.target.value, category: selectedCategory });
-                  if (e.target.value) setShowSearchModal(true);
+                onChange={(e) => setFilters({ ...filters, query: e.target.value })}
+              />
+            </div>
+            {currentUser.role === 'Administrator' && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Seed this organization with the default blok playbook content? This will only insert nodes that do not already exist.')) {
+                    seed().catch(err => alert('Seed failed: ' + err.message));
+                  }
                 }}
-                onFocus={() => setShowSearchModal(true)}
-              />
-              <Filter 
-                className={`absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 cursor-pointer transition-colors ${filters.query || filters.tags.length > 0 ? 'text-indigo-600' : 'text-slate-300'}`}
-                onClick={() => setShowSearchModal(true)}
-              />
-            </div>
+                title="Seed organization with blok playbook content"
+                className="ml-2 p-2 hover:bg-slate-100 rounded transition-colors"
+              >
+                <Settings className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+            )}
           </div>
 
-          <div className="flex-1 overflow-y-auto py-2 px-3 custom-scrollbar">
-            {sidebarRoots.map(rootId => (
-              <SidebarItem 
-                key={rootId}
-                nodeId={rootId} 
-                selectedId={selectedId} 
-                onSelect={setSelectedId} 
-                user={currentUser}
-                categoryFilter={selectedCategory}
-                registry={nodes}
-              />
-            ))}
-          </div>
-
-          <div className="p-4 border-t border-slate-100">
-            <div className="bg-slate-900 rounded-xl p-4 text-white">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Capabilities</div>
-              <div className="flex items-center gap-2">
-                <Users className="w-3 h-3 text-indigo-400" />
-                <span className="text-[11px] font-medium">{currentUser.teams.join(', ')}</span>
-              </div>
-            </div>
-          </div>
+          <WikiSidebar
+            roots={roots}
+            nodes={nodes}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            user={currentUser}
+            searchQuery={filters.query}
+          />
         </aside>
 
         {/* Main Content Area */}
@@ -1535,45 +1703,110 @@ function AppContent() {
           )}
         </AnimatePresence>
 
-        {/* Right Pane */}
-         <aside className="hidden xl:flex w-60 bg-white border-l border-slate-200 shrink-0 flex-col overflow-hidden">
-          <div className="p-6 flex-1 flex flex-col">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 px-1">Context Analysis</h3>
-            
-            <div className="space-y-6">
-               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Permissions</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                      <span className="text-slate-500">Read</span>
-                      <span className="text-emerald-600">YES</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                      <span className="text-slate-500">Update</span>
-                      <span className={hasPermission(currentUser, selectedNode, 'update') ? 'text-emerald-600' : 'text-red-400'}>
-                        {hasPermission(currentUser, selectedNode, 'update') ? 'YES' : 'NO'}
-                      </span>
-                    </div>
+        {/* Right Pane — Favorites (collapses to a thin rail) */}
+        <aside
+          className={`hidden xl:flex bg-white border-l border-slate-200 shrink-0 flex-col overflow-hidden transition-[width] duration-300 ease-out ${
+            favoritesOpen ? 'w-64' : 'w-10'
+          }`}
+        >
+          {favoritesOpen ? (
+            <>
+              <button
+                onClick={() => setFavoritesOpen(false)}
+                title="Collapse favorites"
+                className="flex items-center justify-between w-full px-5 py-4 border-b border-slate-100 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Star className="w-3.5 h-3.5 text-amber-500" fill="currentColor" />
+                  <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                    Favorites
+                  </span>
+                  {favorites.length > 0 && (
+                    <span className="text-[10px] font-bold text-slate-400">
+                      {favorites.length}
+                    </span>
+                  )}
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+
+              <div className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
+                {favorites.length === 0 ? (
+                  <div className="p-4 text-center">
+                    <Star className="w-6 h-6 mx-auto mb-2 text-slate-200" />
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Tap the star on any playbook to add it here.
+                    </p>
                   </div>
-               </div>
-               
-               <div className="p-4 bg-indigo-900 rounded-xl text-white shadow-xl shadow-indigo-100">
-                  <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-3">Linked Data</h4>
-                  <p className="text-[9px] text-indigo-100 leading-relaxed mb-4">
-                    This document is linked to {getChildren(selectedNode, nodes).length} child nodes and {selectedNode.entity_type === 'playbook' ? (selectedNode as PlaybookDocument).linktree?.related?.length || 0 : 0} related playbooks.
-                  </p>
-                  <button className="w-full py-2 bg-indigo-600 text-white text-[9px] font-black rounded-lg hover:bg-indigo-500 transition-all uppercase tracking-widest">
-                    View Genealogy
-                  </button>
-               </div>
-            </div>
-          </div>
-          
-          <div className="p-6 border-t border-slate-100">
-            <button className="w-full py-3 bg-slate-900 text-white text-[10px] font-black rounded-xl hover:bg-black transition-all shadow-lg uppercase tracking-widest">
-              Audit Logs
+                ) : (
+                  favorites
+                    .map(id => nodes[id])
+                    .filter(Boolean)
+                    .map(node => {
+                      const id = node.entity_type === 'playbook' ? node.info.id : node.id;
+                      const title = getTitle(node);
+                      const cat = getCategories(node)[0];
+                      const isSelected = id === selectedId;
+                      return (
+                        <div
+                          key={id}
+                          className={`group flex items-start gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-indigo-50 text-indigo-800'
+                              : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                          onClick={() => {
+                            if (cat) setSelectedCategory(cat);
+                            setSelectedId(id);
+                          }}
+                        >
+                          <BookOpen
+                            className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${
+                              isSelected ? 'text-indigo-500' : 'text-slate-300'
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            {cat && (
+                              <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 leading-tight mb-0.5">
+                                {cat}
+                              </span>
+                            )}
+                            <span className="block text-[12px] font-semibold leading-tight truncate">
+                              {title}
+                            </span>
+                          </div>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              toggleFavorite(id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-slate-400 hover:text-red-500"
+                            title="Remove from favorites"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => setFavoritesOpen(true)}
+              title={`Show favorites${favorites.length ? ` (${favorites.length})` : ''}`}
+              className="flex flex-col items-center justify-start gap-2 w-full h-full pt-4 hover:bg-slate-50 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4 text-slate-400" />
+              <Star
+                className="w-4 h-4 text-amber-500"
+                fill={favorites.length > 0 ? 'currentColor' : 'none'}
+              />
+              {favorites.length > 0 && (
+                <span className="text-[10px] font-bold text-slate-500">{favorites.length}</span>
+              )}
             </button>
-          </div>
+          )}
         </aside>
       </div>
     </div>
