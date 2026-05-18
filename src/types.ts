@@ -43,10 +43,24 @@ export interface PlaybookReference {
   matchValue?: string;
 }
 
+export type ResourceType =
+  | 'sop'        // internal reference to another playbook (url starts with '#')
+  | 'board'      // monday.com / Linear / Trello / etc. board
+  | 'document'   // generic doc (Google Doc, Notion, etc.)
+  | 'folder'     // file/folder location
+  | 'video'      // recording
+  | 'pdf'        // attached PDF
+  | 'link'       // arbitrary external link
+  | 'other';
+
 export interface ResourceItem {
-  name: string;
-  type: 'video' | 'pdf' | 'link' | string;
+  id?: string;
+  name: string;                       // legacy field (openplaybook seed used this)
+  title?: string;                     // preferred display field
+  description?: string;
+  type: ResourceType | string;
   url: string;
+  thumbnail?: string;
 }
 
 export interface OpenPlaybookStep {
@@ -122,6 +136,9 @@ export interface PlaybookDocument {
   };
   steps: OpenPlaybookStep[];
   related_playbooks?: PlaybookReference[]; // Cross-category or many-to-many references
+  // Optional long-form markdown body (SOP-style). When present, rendered above steps;
+  // when steps are empty the body is the entire playbook view.
+  body_markdown?: string;
   // Metadata for the BOS Tree
   tags?: string[];
   subType?: 'Course' | 'Step' | 'Standard';
@@ -139,4 +156,10 @@ export interface AppUser {
   email: string;
   role: UserRole;
   teams: string[];
+}
+
+export interface Organization {
+  id: string;       // Clerk org id (e.g. "org_2abc...")
+  name: string;
+  slug?: string;
 }

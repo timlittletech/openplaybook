@@ -1,24 +1,61 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Barlow:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
+/**
+ * blok & co. theme — applied by overriding Tailwind's default `indigo` and `amber`
+ * palettes so that all existing utility classes (bg-indigo-600, text-amber-500, etc.)
+ * pick up brand colors without touching component code.
+ *
+ * Brand:
+ *   Steel    #1C375B  (primary)
+ *   Orange   #EA580C  (accent)
+ *   Yellow   #F59E0B  (warnings / business rules)
+ *   Cement   #E2E8F0  (borders)
+ *   Asphalt  #334155  (body copy)
+ */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Steel (replaces indigo for the entire app primary palette) */
+  --color-indigo-50:  #EEF2F9;
+  --color-indigo-100: #DCE5F1;
+  --color-indigo-200: #B5C5DF;
+  --color-indigo-300: #8AA4CA;
+  --color-indigo-400: #5C7CAB;
+  --color-indigo-500: #2A4D7A;  /* steelLight */
+  --color-indigo-600: #1C375B;  /* steel (primary) */
+  --color-indigo-700: #13243D;  /* steelDark */
+  --color-indigo-800: #0F1D34;
+  --color-indigo-900: #0A1424;
+
+  /* Orange/Yellow (kept tunable for accent surfaces) */
+  --color-amber-50:  #FFFBEB;
+  --color-amber-100: #FEF3C7;
+  --color-amber-200: #FDE68A;
+  --color-amber-300: #FCD34D;
+  --color-amber-400: #FBBF24;
+  --color-amber-500: #F59E0B;  /* construction yellow */
+  --color-amber-600: #D97706;
+  --color-amber-700: #B45309;
 }
 
 @layer base {
   body {
     @apply font-sans;
   }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
 }
 
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-gray-200 rounded-full hover:bg-gray-300 transition-colors;
+  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
 }

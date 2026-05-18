@@ -1,0 +1,8 @@
+project_id = "openplaybook"
+
+[db]
+shadow_port = 54320
+major_version = 15
+
+[auth]
+enabled = false  # we use Clerk via Third-Party Auth; no Supabase Auth needed
