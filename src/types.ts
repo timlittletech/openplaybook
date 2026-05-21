@@ -119,7 +119,8 @@ export interface PlaybookDocument {
   openplaybook: string;
   entity_type: 'playbook';
   info: OpenPlaybookInfo;
-  cadence?: string; 
+  cadence?: string;
+  priority?: string; // e.g. High | Medium | Low — drives the priority badge
   owner?: { id: string; name: string; email: string };
   resources?: ResourceItem[];
   parent_id?: string; // Standard linear parent

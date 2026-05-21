@@ -36,7 +36,8 @@ import {
   Plus,
   Trash2,
   Save,
-  Edit2
+  Edit2,
+  Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -52,6 +53,7 @@ import {
 } from '@clerk/clerk-react';
 import { PlaybookProvider, usePlaybook } from './contexts/PlaybookContext';
 import { BrandedMarkdown } from './components/BrandedMarkdown';
+import { ImportMarkdownModal } from './components/ImportMarkdownModal';
 import { mockUsers } from './data';
 import { 
   PlaybookDocumentUnion, 
@@ -73,6 +75,23 @@ const getResolvedNode = (id: string, registry: Record<string, PlaybookDocumentUn
 const getTitle = (node: PlaybookDocumentUnion): string => {
   if (node.entity_type === 'factor') return node.label;
   return node.info.title;
+};
+
+// Priority badge styling — falls back to a neutral indigo for custom values
+const priorityStyles = (priority?: string): string => {
+  switch ((priority || '').toLowerCase()) {
+    case 'critical':
+    case 'urgent':
+    case 'high':
+      return 'text-rose-700 bg-rose-50 border-rose-200';
+    case 'medium':
+    case 'normal':
+      return 'text-amber-700 bg-amber-50 border-amber-100';
+    case 'low':
+      return 'text-slate-600 bg-slate-50 border-slate-200';
+    default:
+      return 'text-indigo-700 bg-indigo-50 border-indigo-100';
+  }
 };
 
 const getDescription = (node: PlaybookDocumentUnion): string => {
@@ -745,6 +764,12 @@ const RecursivePlaybookRenderer: React.FC<PlaybookViewerProps & { onCategorySele
             >
               <Star className="w-4 h-4" fill={isFavorite(playbook.info.id) ? 'currentColor' : 'none'} />
             </button>
+            {playbook.priority && (
+              <div className="text-right">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 leading-none">Priority</span>
+                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border shadow-sm ${priorityStyles(playbook.priority)}`}>{playbook.priority}</span>
+              </div>
+            )}
             <div className="text-right">
               <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-1 leading-none">Cadence</span>
               <span className="text-[10px] font-bold text-slate-900 uppercase bg-amber-50 px-2 py-1 rounded border border-amber-100 shadow-sm">{playbook.cadence || 'N/A'}</span>
@@ -1297,6 +1322,7 @@ function AppContent() {
   } = usePlaybook();
 
   const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   // Fallback to the seed admin so the UI renders before profile is fetched
   const currentUser = profile || mockUsers[0];
@@ -1482,13 +1508,22 @@ function AppContent() {
             </div>
             {currentUser.role === 'Administrator' && (
               <button
+                onClick={() => setShowImport(true)}
+                title="Import playbooks from markdown files"
+                className="ml-2 p-2 hover:bg-slate-100 rounded transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+            )}
+            {currentUser.role === 'Administrator' && (
+              <button
                 onClick={() => {
                   if (window.confirm('Seed this organization with the default blok playbook content? This will only insert nodes that do not already exist.')) {
                     seed().catch(err => alert('Seed failed: ' + err.message));
                   }
                 }}
                 title="Seed organization with blok playbook content"
-                className="ml-2 p-2 hover:bg-slate-100 rounded transition-colors"
+                className="p-2 hover:bg-slate-100 rounded transition-colors"
               >
                 <Settings className="w-3.5 h-3.5 text-slate-400" />
               </button>
@@ -1809,6 +1844,8 @@ function AppContent() {
           )}
         </aside>
       </div>
+
+      <ImportMarkdownModal open={showImport} onClose={() => setShowImport(false)} />
     </div>
   );
 }

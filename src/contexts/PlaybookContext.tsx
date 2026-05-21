@@ -9,6 +9,7 @@ import { createSupabaseClient } from '../lib/supabase';
 import { createPlaybookService, PlaybookService } from '../services/playbookService';
 import { AppUser, PlaybookDocumentUnion } from '../types';
 import { masterRegistry, seedDataRelation } from '../data';
+import { parseMarkdownFiles, ParsedFile } from '../lib/markdownImport';
 
 interface PlaybookContextType {
   profile: AppUser | null;
@@ -21,6 +22,7 @@ interface PlaybookContextType {
   setIsEditMode: (mode: boolean) => void;
   refreshData: () => Promise<void>;
   seed: () => Promise<void>;
+  importMarkdown: (files: ParsedFile[]) => Promise<{ count: number; titles: string[] }>;
   saveDraft: (id: string, content: Partial<PlaybookDocumentUnion>) => Promise<void>;
   publishDraft: (id: string, note?: string) => Promise<void>;
   getVersions: (id: string) => Promise<any[]>;
@@ -174,6 +176,31 @@ export const PlaybookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     await refreshData();
   }, [service, organization, refreshData]);
 
+  const importMarkdown = useCallback(
+    async (files: ParsedFile[]) => {
+      if (!service || !organization) {
+        throw new Error('Sign in and select an organization before importing.');
+      }
+      // Self-heal the org row before inserting nodes (FK on nodes.org_id).
+      await service.ensureOrganization({
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug ?? undefined,
+      });
+      const { nodes: parsedNodes, roots: parsedRoots } = parseMarkdownFiles(files);
+      if (Object.keys(parsedNodes).length === 0) {
+        throw new Error('No playbooks found in the selected files.');
+      }
+      await service.seedInitialData(parsedNodes, parsedRoots);
+      await refreshData();
+      return {
+        count: Object.keys(parsedNodes).length,
+        titles: Object.values(parsedNodes).map(n => n.info.title),
+      };
+    },
+    [service, organization, refreshData]
+  );
+
   const saveDraft = useCallback(
     async (id: string, content: Partial<PlaybookDocumentUnion>) => {
       if (!service) return;
@@ -243,6 +270,7 @@ export const PlaybookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setIsEditMode,
       refreshData,
       seed,
+      importMarkdown,
       saveDraft,
       publishDraft,
       getVersions,
@@ -250,7 +278,7 @@ export const PlaybookProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       isFavorite,
       toggleFavorite,
     }),
-    [profile, displayNodes, roots, loading, organization, isEditMode, refreshData, seed, saveDraft, publishDraft, getVersions, favorites, isFavorite, toggleFavorite]
+    [profile, displayNodes, roots, loading, organization, isEditMode, refreshData, seed, importMarkdown, saveDraft, publishDraft, getVersions, favorites, isFavorite, toggleFavorite]
   );
 
   return <PlaybookContext.Provider value={value}>{children}</PlaybookContext.Provider>;
